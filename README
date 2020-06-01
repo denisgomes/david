@@ -1,0 +1,190 @@
+dAvId
+=====
+dAvId is an open source decentralized peer-to-peer search engine powered by
+artificial intelligence (AI).
+
+
+Why
+===
+It is created to fight and defeat the search engine Goliths such as the likes
+of Google and Bing by giving users control of their own data. It is time to
+take our freedom and privacy back from the hands of our technology warlords.
+
+
+How
+===
+A distributed peer-to-peer search engine where all users are equal and host
+their own content using the Kademdia network protocol. The user is granted
+access to a web app which consists of a search bar and an admin interface to
+manage their data. It should be written mainly in Python.
+
+
+Projects
+========
+1. pydht - P2P Kademdia protocol
+2. PGP web of trust and encryption between peers
+3. Chat-PGP-P2P
+
+
+Dependencies
+============
+1. requests
+2. arackpy
+2. lxml
+3. flask
+
+
+Research
+========
+How to implement a Python p2p networks (TCP)
+
+Distributed hash tables for "trakerless" clients (see the bittorrent spec), to
+avoid central servers needed to get list of peers (UDP)
+
+The peer is the client/server listening on a TCP port that implements the
+Kalemdia protocol
+
+A node is the client/server listening on a UDP port which implements the
+protocol for DHT node (see the bittorrent website)
+
+Web crawlers based on user defined parameters update the index, which is
+a sqlite3 FTS database.
+
+How indexing works and popular NL machine learning algorithms the visited
+websites. Using data processing pipelines to clean data.
+
+Distributed implementation of PageRank and other search algorithms on the user
+index to build page ranking. Building an AI algorithm behind the pagerank
+algorithm.
+
+Python cli scripts to start browser, stop browser, crawl, pagerank
+(asyncronously), generate keys, etc.
+
+A server program running on port 7777, that returns https results from the
+index based on the search results
+
+Weaknesses in the p2p network security and ways to best deal with them
+
+
+How Public Key Infrastructure (PKI) works
+-----------------------------------------
+1. PC1 wants to securely talk to PC2.
+
+2. PC1 get PC2's public key.
+
+3. PC1 encrypts the plaintext message using PC2's public key.
+
+4. PC1 creates a secure hash of the message and signs with the private key.
+
+5. PC1 sends the encrypted message and the encrpyted hash (ie. the digital
+signature) via TCP to PC2. ---->
+
+6. -----> PC2 receives the messages.
+
+7. PC2 decrpyts the message using PC2's private key.
+
+8. PC2 generates the hash of the plaintext message.
+
+9. PC2 decrypts the encrypted hash (the digital signature) using PC1's public
+key and compares to the hash from step 8. If it matches, the message has not
+been changed and it came from the right user.
+
+* The keyserver is where anyone can post their private key, but it may not be
+safe so a web of trust (see below) should be created.
+
+
+Web of Trust
+------------
+https://www.linux.com/training-tutorials/pgp-web-trust-core-concepts-behind-trusted-communication/
+
+1. Created by Phil Zimmerman in 1991, the web of trust removes the PKA (Public
+Key Authority (central authority) and decentralizes the issue of establishing
+trust. The users gets to decide who to trust and how much.
+
+The "validity" of a key in your keyring answers if the key truely belongs to
+that person. It is established by signing their public key.
+
+$ gpg --edit-key <username>
+$ gpg sign
+
+The "trust" of a key in your keyring answers the question of how much you think
+that user is worthy to sign someone else's public key. How honest are they
+really.
+
+$ gpg --edit-key <username>
+$ gpg trust
+
+Users must share their public key and sign each other's public keys. They
+must also set whether or not they trust to have the other user as someone
+who should be allowed to sign other peoples' public keys. Trust vs validity
+of a user.
+
+2. Each user in the web has a keyring of public keys from individuals. Some
+of these keys they sign with their master key and set trust levels to.
+
+3. The more people sign and vouch for your public key, the more people can
+assume your key truely belongs to you (i.e you are not an imposter) and you
+can be trusted.
+
+
+How it could work
+=================
+Configuartion file in:
+
+~/.config/.david/conf.py
+
+$ david startserver         # start the peer-to-peer server
+$ david stopserver          # stop the server
+$ david crawl ...           # crawl parameters
+$ david index ...
+$ david pagerank ...        # run pagerank on the index at downtime or async
+$ david certificate         # generate certificate
+
+Open a web browswer and go to localhost:7777 to start browsing.
+Use a webkit application to provide a UI to the cli described above.
+
+
+Build in Pieces
+===============
+Generic crawlers
+The user web index of sites (datastore)
+Pagerank and AI based algorithms to work on the index
+P2P network built on top of PGP web of trust model.
+Front end search page and results page
+
+
+Design Goals
+============
+Limit the size of the index.
+Limit the crawler and the memory usage.
+
+
+Links
+=====
+https://wiki.theory.org/index.php/BitTorrentSpecification
+
+
+Index/Indexer
+=============
+Must be language aware!
+
+1. Extracting keywords from a piece of text (think a spam filter).
+
+a. Work frequency and stemming (word roots)
+b. Get rid of stop words and punctuation marks.
+c. Filter out nouns, action verbs, (hypertext, italics, bold, highlight)
+d. Words in title are important, capture the entire phrase.
+e. Apositive definitions.
+
+Weighted Priority
+-----------------
+a. Title and entire title phrase (40%)
+b. Hypertext, italics, bold, highlights (25%)
+c. Nouns with apositives (15%)
+d. Nouns (15%)
+e. Action Verbs (any verb you can see, not the to be verbs) (5%)
+
+Definitions
+===========
+1. Token - a word or unit of text (ngram)
+2. Corpus - A collection of documents in the database
