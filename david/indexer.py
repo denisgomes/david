@@ -1,8 +1,8 @@
 """User site repository and search index.
 
 Spiders crawl the web, extract text from urls and generate relevant keywords
-based on a different algorithms. For each url, the following items of data is
-stored inside a sqlite database:
+based on different algorithms. For each url, the following items of data is
+stored inside a sqlite repository i.e. database:
 
 * the url,
 * the title,
@@ -10,17 +10,17 @@ stored inside a sqlite database:
 * html hash,
 * pagerank
 
-The documents table is a fts4 table.
+The documents table is a fts3 table.
 
 Sites
 -----
-id, url, hash, refurls, weight (pagerank is one aspect of weight)
+id, hash, raw_html (compressed), weight (pagerank weight)
 
 https://sqlite.org/fts3.html#matchinfo
 
-Documents
----------
-title, content
+Documents (FTS)
+---------------
+rowid, url, title, text
 
 FTS is used along with ranking functions such as bm95 to get pages that match
 terms most closely.
@@ -46,11 +46,11 @@ def md5sum(text):
     return hashlib.md5(text).hexdigest()
 
 
-def compress(data):
+def zip(data):
     return zlib.compress(data, 9)
 
 
-def decompress(data):
+def unzip(data):
     return zlib.decompress(data)
 
 
@@ -72,28 +72,39 @@ class Indexer:
     database = "repository.db"
 
     def __init__(self):
-        self.init_repo(self.database)
+        self.create_database(self.database)
         self.parser = HTMLTextParser()
 
-    def init_repo(self, repo):
+    def create_database(self, name):
         """Create the document repository if one does not exist."""
-        self.conn = sqlite3.connect(repo)
+        self.conn = sqlite3.connect(name)
         self.cur = self.conn.cursor()
 
         # enable extension loading
         self.conn.enable_load_extension(True)
 
         # register sql functions
-        self.conn.create_function("compress", 1, compress)
-        self.conn.create_function("decompress", 2, decompress)
+        self.conn.create_function("zip", 1, zip)
+        self.conn.create_function("unzip", 2, unzip)
 
         self.cur.executescript("""
-            CREATE VIRTUAL TABLE IF NOT EXISTS docs USING fts3 (
+            CREATE TABLE IF NOT EXISTS sites (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                hash TEXT,
+                html BLOB,
+                weight FLOAT,
+                url,
+                title,
+                content
+            );
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS docs USING fts4 (
+                content="sites",
                 url,
                 title,
                 content,
-                hash,
-                weight,
+                compress=zip,
+                uncompress=unzip
             );
             """)
 
@@ -110,10 +121,9 @@ class Indexer:
             INSERT INTO docs (
                 url,
                 title,
-                content,
-                hash,
-                weight) VALUES (?, ?, ?, ?, ?)
-            """, (url, "", doc, md5sum(doc), "0")
+                content)
+            VALUES (?, ?, ?)
+            """, (url, "", doc)
             )
 
         self.conn.commit()
@@ -128,11 +138,11 @@ class Indexer:
         """Do a full text search of the index and return a list of urls with
         the best rank based on the input query string.
         """
-        pass
+        raise NotImplementedError("implement")
 
-    def pagerank(self):
+    def rank(self):
         """Run the pagerank algorithm for the entire database."""
-        pass
+        raise NotImplementedError("implement")
 
     def close(self):
         self.conn.commit()
@@ -143,6 +153,6 @@ if __name__ == "__main__":
     url = "https://www.msn.com/en-us/news/technology/amazon-wont-commit-to-jeff-bezos-testimony-over-misuse-of-seller-data/ar-BB14b9ZB"
     blacklist = ["noscript", "script", "[document]", "header", "html", "meta", "head", "input", "style"]
 
-    doc = urlopen(url, timeout=5).read()
+    # doc = urlopen(url, timeout=5).read()
     indexer = Indexer()
-    indexer.insert(url, doc)
+    # indexer.insert(url, doc)

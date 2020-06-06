@@ -48,7 +48,7 @@ A node is the client/server listening on a UDP port which implements the
 protocol for DHT node (see the bittorrent website)
 
 Web crawlers based on user defined parameters update the index, which is
-a sqlite3 FTS database.
+a sqlite3 FTS3/4 database.
 
 How indexing works and popular NL machine learning algorithms the visited
 websites. Using data processing pipelines to clean data.
@@ -125,6 +125,14 @@ of these keys they sign with their master key and set trust levels to.
 3. The more people sign and vouch for your public key, the more people can
 assume your key truely belongs to you (i.e you are not an imposter) and you
 can be trusted.
+
+
+Kademlia + PGP
+--------------
+What if node lookup is based on the web of trust. For example, a web of trust
+lookup which returns the most secure nodes (direct trust, ie. users you know
+at a personal level) first and then the less trusted 3rd party nodes. You have
+the option to set the trust level.
 
 
 How it could work
