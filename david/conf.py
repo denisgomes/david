@@ -1,5 +1,14 @@
 """dAvId system settings and configurations"""
 
+import os
+
+
+# project root
+project_root = os.path.abspath(os.path.dirname(__name__))
+
+# repository
+repository = "test.repo"
+
 
 crawler_options = {
     "debug": False,         # crawl in debug mode
@@ -17,4 +26,5 @@ crawler_options = {
 
 indexer_options = {
     "debug": False,         # index in debug mode
+    "repository": os.path.join(project_root, repository),
 }

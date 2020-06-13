@@ -1,21 +1,27 @@
-"""Implementation of a web spider"""
+"""Implementation of a web spider.
+
+
+The spider is responsible for inserting items into the repository.
+
+"""
+
+import hashlib
 
 from arackpy import spider
 
-import lxml
+from parser import HTMLTextParser
+from indexer import Indexer
 
 
-class Crawler(spider.Spider):
-
-    thread_safe_parse = True    # enforce sqlite db write is threadsafe
-
-    def parse(self, url, html):
-        print(url)
+def md5sum(text):
+    return hashlib.md5(text).hexdigest()
 
 
 def start_crawler(args):
-    """args is the namespace of command line arguments supplied by the
-    crawl subparser.
+    """Run a crawler.
+
+        args is the namespace of command line arguments supplied by the
+        crawl subparser.
     """
     # set top level crawl options
     Crawler.start_urls = args.start_urls
@@ -38,3 +44,37 @@ def start_crawler(args):
 
     # run
     crawler.crawl()
+
+
+class Crawler(spider.Spider):
+    # options
+    thread_safe_parse = False   # safety up to indexer
+
+    def __init__(self, backend="default", **kwargs):
+        self.indexer = Indexer()    # shared across threads
+        super(Crawler, self).__init__(backend=backend, **kwargs)
+
+    def parse(self, url, html):
+        # multithreaded parsing and execution
+        parser = HTMLTextParser()
+
+        try:
+            data = parser.parse(html)
+
+            title = "".join(data["title"])
+            print(title)
+
+            # similar heading joined
+            h1 = " ".join(data["h1"])
+            h2 = " ".join(data["h2"])
+            h3 = " ".join(data["h3"])
+
+            # text content
+            content = " ".join(data["content"])
+            # print(content)
+            hash = md5sum(content.encode("utf-8"))
+
+            self.indexer.insert(url, title, h1, h2, h3, content, html, hash)
+
+        except Exception as e:
+            print(e)

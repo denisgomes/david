@@ -1,10 +1,17 @@
 """The dAvId Command Line Interface (CLI).
 
-$ david startserver
-$ david stopserver
+General syntax.
+
+david subcommand posarg(s), kwargs
+
+$ david startserver     # start the server
+$ david stopserver      # stop the server
+$ david createdb        # create a repository
 
 $ david crawl url1, url2, ...
-$ david crawl -p 123.123.123.123 -L 100 -T 1000 url1, url2, ..., urlN
+$ david crawl url1, url2, ..., urlN -p 123.123.123.123 -L 100 -T 1000
+
+$ david index create filename
 """
 
 import argparse
@@ -12,19 +19,27 @@ import argparse
 from conf import crawler_options as co
 from crawler import start_crawler
 
+from conf import indexer_options as io
+from indexer import make_repo
+
 
 # top level parsers
 parser = argparse.ArgumentParser(prog="dAvId")
 parser.add_argument("--version", action="version", version="%(prog)s 0.1",
                     help="program version information")
+subparser = parser.add_subparsers(title="crawl and index",
+                                  description="crawl and index",
+                                  help="crawling subcommands",
+                                  dest="name"     # handle to subparser
+                                  )
+
+# create repository
+repo = subparser.add_parser("makerepo", help="create a repository")
+repo.add_argument("repository", nargs="?", default=io["repository"],
+                  help="create the database")
 
 # crawl subparser
-crawl_subparser = parser.add_subparsers(title="crawl",
-                                        description="crawl and index",
-                                        help="crawling subcommands",
-                                        dest="name"     # handle to subparser
-                                        )
-crawl = crawl_subparser.add_parser("crawl", help="list of urls to crawl")
+crawl = subparser.add_parser("crawl", help="list of urls to crawl")
 crawl.add_argument("start_urls", nargs="+",     # at least one pos arg required
                    help="list of start urls")
 crawl.add_argument("-p", "--proxy", dest="proxy", nargs="+",
@@ -52,10 +67,19 @@ crawl.add_argument("-H", "--history", dest="history", type=int,
                    default=co["history"], help="visit history deque size")
 
 # index subparser
-# ...
+index = subparser.add_parser("index", help="index management")
+index.add_argument("repository", nargs="?", default=io["repository"],
+                   help="repository to work on")
+index.add_argument("-D", "--debug", nargs="?", default=io["debug"],
+                   help="index using debug mode", dest="debug")
+
 
 if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.name == "crawl":
         start_crawler(args)
+    if args.name == "makerepo":
+        make_repo(args.repository)
+    elif args.name == "index":
+        print(args)

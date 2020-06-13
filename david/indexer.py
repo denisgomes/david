@@ -30,27 +30,31 @@ value of relevance. The relevance score is then multiplied by the pagerank to
 calculate the final score.
 """
 
-import hashlib
+import logging
 import sqlite3
+import threading
 from urllib.request import urlopen
 import zlib
 
 from lxml import html
 from lxml.html.clean import Cleaner
 import requests
-
-from david.parser import HTMLTextParser
-
-
-def md5sum(text):
-    return hashlib.md5(text).hexdigest()
+import sqlite_fts4
 
 
-def zip(data):
+from conf import indexer_options as io
+from parser import HTMLTextParser
+
+
+# report critial levels above 'warning', (i.e. 'error' and 'critical'), default
+logging.basicConfig(level=logging.ERROR)
+
+
+def zlibzip(data):
     return zlib.compress(data, 9)
 
 
-def unzip(data):
+def zlibunzip(data):
     return zlib.decompress(data)
 
 
@@ -66,67 +70,116 @@ def clean_html(url, blacklist):
     return d.text_content()
 
 
-class Indexer:
-    """Manage a database of hypertext documents stored on disk."""
+def make_repo(name):
+    """Create the document repository if one does not exist."""
+    conn = sqlite3.connect(name)
+    curs = conn.cursor()
 
-    database = "repository.db"
+    # may need to be repeated everytime a connection is established
+
+    # enable extension loading
+    conn.enable_load_extension(True)
+
+    # define pragmas as needed
+
+    # register sql functions to use with fts4 tables
+    conn.create_function("zlibzip", 1, zlibzip)
+    conn.create_function("zlibunzip", 2, zlibunzip)
+
+    curs.executescript("""
+        CREATE TABLE IF NOT EXISTS sites (
+            docid INTEGER PRIMARY KEY,
+            url,
+            title,
+            h1,
+            h2,
+            h3,
+            content,
+            html BLOB,
+            hash TEXT,
+            weight FLOAT
+        );
+
+        CREATE VIRTUAL TABLE IF NOT EXISTS docs USING fts4 (
+            content="sites",
+            url,
+            title,
+            h1,
+            h2,
+            h3,
+            content,
+            compress=zlibzip,
+            uncompress=zlibunzip
+        );
+
+        CREATE TRIGGER sites_bu BEFORE UPDATE ON sites BEGIN
+            DELETE FROM docs WHERE docid=old.rowid;
+        END;
+        CREATE TRIGGER sites_bd BEFORE DELETE ON sites BEGIN
+            DELETE FROM docs WHERE docid=old.rowid;
+        END;
+
+        CREATE TRIGGER sites_au AFTER UPDATE ON sites BEGIN
+            INSERT INTO docs(docid, url, title, h1, h2, h3, content)
+            VALUES (new.rowid, new.url, new.title, new.h1, new.h2, new.h3,
+                    new.content);
+        END;
+        CREATE TRIGGER sites_ai AFTER INSERT ON sites BEGIN
+            INSERT INTO docs(docid, url, title, h1, h2, h3, content)
+            VALUES (new.rowid, new.url, new.title, new.h1, new.h2, new.h3,
+            new.content);
+        END;
+        """)
+
+    conn.commit()
+    conn.close()
+
+
+class Indexer:
+    """Index a repository of hypertext documents stored on disk.
+
+    External content FT4 files.
+    """
+
+    debug = False
 
     def __init__(self):
-        self.create_database(self.database)
-        self.parser = HTMLTextParser()
+        self.lock = threading.Lock()    # write lock
 
-    def create_database(self, name):
-        """Create the document repository if one does not exist."""
-        self.conn = sqlite3.connect(name)
-        self.cur = self.conn.cursor()
+        # create database connect and cursor
+        self.conn = sqlite3.connect(io["repository"], check_same_thread=False)
+        self.curs = self.conn.cursor()
 
         # enable extension loading
         self.conn.enable_load_extension(True)
 
-        # register sql functions
-        self.conn.create_function("zip", 1, zip)
-        self.conn.create_function("unzip", 2, unzip)
+        # register sql functions to use with fts4 tables
+        self.conn.create_function("zlibzip", 1, zlibzip)
+        self.conn.create_function("zlibunzip", 2, zlibunzip)
 
-        self.cur.executescript("""
-            CREATE TABLE IF NOT EXISTS sites (
-                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                hash TEXT,
-                html BLOB,
-                weight FLOAT,
-                url,
-                title,
-                content
-            );
+        # register ranking functions
+        sqlite_fts4.register_functions(self.conn)
 
-            CREATE VIRTUAL TABLE IF NOT EXISTS docs USING fts4 (
-                content="sites",
-                url,
-                title,
-                content,
-                compress=zip,
-                uncompress=unzip
-            );
-            """)
+        if self.debug:
+            logger = logging.getLogger()
+            logger.setLevel(logging.DEBUG)
 
-        self.conn.commit()
-        # self.conn.close()
+    def insert(self, url, title, h1, h2, h3, content, html, hash):
+        """Add an url and the corresponding document to the index.
 
-    def insert(self, url, doc):
-        """Add an url and the corresponding document to the index."""
-        print(url)
-
-        text, urls = self.parser.parse(doc.decode("utf-8"))
-
-        self.cur.execute("""
-            INSERT INTO docs (
-                url,
-                title,
-                content)
-            VALUES (?, ?, ?)
-            """, (url, "", doc)
-            )
-
-        self.conn.commit()
+        First check to see if the document has already been indexed by
+        comparing the hash.
+        """
+        try:
+            with self.lock:
+                self.curs.execute("""
+                INSERT INTO sites(url, title, h1, h2, h3, content, html, hash)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                """, (url, title, h1, h2, h3, content, html, hash)
+                )
+                self.conn.commit()
+        except Exception as e:
+            print(e)
 
     def delete(self, url):
         pass
@@ -134,13 +187,27 @@ class Indexer:
     def update(self, url):
         pass
 
-    def search(self, query):
+    def search(self, query, limit=10, page=0):
         """Do a full text search of the index and return a list of urls with
-        the best rank based on the input query string.
+        the best rank based on the input query string. Based on the sqlite3
+        documentation query from, https://sqlite.org/fts3.html.
         """
-        raise NotImplementedError("implement")
+        self.curs.execute("""
+            SELECT title, snippet(docs) FROM docs JOIN (
+                SELECT docid, rank_score(matchinfo(docs, "pcx")) AS rank
+                FROM docs JOIN sites USING(docid)
+                WHERE docs MATCH ?
+                ORDER BY rank DESC
+                LIMIT ? OFFSET ?
+            ) AS ranktable USING(docid)
+            WHERE docs MATCH ?
+            ORDER BY ranktable.rank DESC
+            """, (query, limit, page, query)
+            )
 
-    def rank(self):
+        return self.curs.fetchall()
+
+    def pagerank(self):
         """Run the pagerank algorithm for the entire database."""
         raise NotImplementedError("implement")
 
@@ -150,9 +217,4 @@ class Indexer:
 
 
 if __name__ == "__main__":
-    url = "https://www.msn.com/en-us/news/technology/amazon-wont-commit-to-jeff-bezos-testimony-over-misuse-of-seller-data/ar-BB14b9ZB"
-    blacklist = ["noscript", "script", "[document]", "header", "html", "meta", "head", "input", "style"]
-
-    # doc = urlopen(url, timeout=5).read()
     indexer = Indexer()
-    # indexer.insert(url, doc)

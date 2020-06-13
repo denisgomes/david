@@ -4,52 +4,69 @@
 from html.parser import HTMLParser
 from urllib.request import urlopen
 
+from collections import defaultdict
+
 
 class HTMLTextParser(HTMLParser):
+    """Custom html parser"""
 
-    _exclude_tags = ["script", "noscript", "head", "html", "header", "meta",
-                     "input", "style"]
-
-    _extract_tag_data = True
-
-    _text = []
-
-    _urls = set()
+    exclude_tags = ["script", "noscript", "head", "html", "header", "meta",
+                    "input", "style"]
+    extract_tag_data = True
+    tag = None
+    data = defaultdict(list)
 
     def handle_starttag(self, tag, attrs):
-        if tag == "a":
-            for attr, value in attrs:
-                if attr == "href":
-                    self._urls.add(value)
+        self.tag = tag
+        # if tag == "a":
+        #     for attr, value in attrs:
+        #         if attr == "href":
+        #             self.data["urls"].append(value)
 
-        self._extract_tag_data = True
-        if tag in self._exclude_tags:
-            self._extract_tag_data = False
+        self.extract_tag_data = True
+        if tag in self.exclude_tags:
+            self.extract_tag_data = False
 
     def handle_data(self, data):
-        if self._extract_tag_data:
-            data = data.split()     # remove newlines, etc
+        if self.extract_tag_data:
+            data = data.splitlines()    # remove newlines, etc
 
-            if data:
-                self._text.append(" ".join(data))
+            if self.tag == "title":
+                self.data["title"].extend(data)
+
+            elif self.tag == "h1":
+                self.data["h1"].extend(data)
+
+            elif self.tag == "h2":
+                self.data["h2"].extend(data)
+
+            elif self.tag == "h3":
+                self.data["h3"].extend(data)
+
             else:
-                self._text.append("\n")
+                self.data["content"].extend(data)
 
     def handle_comment(self, comment):
-        self._extract_tag_data = False
+        self.extract_tag_data = False
 
     def parse(self, html):
-        self._text.clear()
-        self._urls.clear()
         self.feed(str(html))
 
-        return "".join(self._text[:]), self._urls.copy()
+        data = self.data.copy()
+        self.data.clear()
+
+        return data
 
 
 if __name__ == "__main__":
-    html = urlopen("https://news.yahoo.com/").read()
-    parser = HTMLTextParser()
-    text, urls = parser.parse(html.decode("utf-8"))
+    from gensim.summarization import summarize
 
-    # print(text)
-    print(urls)
+    html = urlopen("https://news.yahoo.com/republican-senators-respond-disbelief-trump-082644931.html").read()
+    parser = HTMLTextParser()
+
+    data = parser.parse(html.decode("utf-8"))
+    # print(" ".join(data["content"]))
+
+    # text = " ".join(data["content"])
+    print(data["h1"])
+    # print(summarize(text))
