@@ -6,12 +6,12 @@ david subcommand posarg(s), kwargs
 
 $ david startserver     # start the server
 $ david stopserver      # stop the server
-$ david createdb        # create a repository
+$ david makerepo        # create a repository
 
 $ david crawl url1, url2, ...
 $ david crawl url1, url2, ..., urlN -p 123.123.123.123 -L 100 -T 1000
 
-$ david index create filename
+$ python -i indexer.py  # to search repository
 """
 
 import argparse
@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
     if args.name == "crawl":
         start_crawler(args)
-    if args.name == "makerepo":
+    elif args.name == "makerepo":
         make_repo(args.repository)
     elif args.name == "index":
         print(args)

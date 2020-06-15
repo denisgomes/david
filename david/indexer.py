@@ -51,11 +51,11 @@ logging.basicConfig(level=logging.ERROR)
 
 
 def zlibzip(data):
-    return zlib.compress(data, 9)
+    return zlib.compress(data.encode("utf-8"), 9)
 
 
 def zlibunzip(data):
-    return zlib.decompress(data)
+    return zlib.decompress(data).decode("utf-8")
 
 
 def clean_html(url, blacklist):
@@ -95,7 +95,7 @@ def make_repo(name):
             h2,
             h3,
             content,
-            html BLOB,
+            html TEXT,
             hash TEXT,
             weight FLOAT
         );
@@ -155,7 +155,7 @@ class Indexer:
 
         # register sql functions to use with fts4 tables
         self.conn.create_function("zlibzip", 1, zlibzip)
-        self.conn.create_function("zlibunzip", 2, zlibunzip)
+        self.conn.create_function("zlibunzip", 1, zlibunzip)
 
         # register ranking functions
         sqlite_fts4.register_functions(self.conn)
@@ -175,7 +175,7 @@ class Indexer:
                 self.curs.execute("""
                 INSERT INTO sites(url, title, h1, h2, h3, content, html, hash)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-                """, (url, title, h1, h2, h3, content, html, hash)
+                """, (url, title, h1, h2, h3, content, zlibzip(html), hash)
                 )
                 self.conn.commit()
         except Exception as e:
@@ -193,8 +193,8 @@ class Indexer:
         documentation query from, https://sqlite.org/fts3.html.
         """
         self.curs.execute("""
-            SELECT title, snippet(docs) FROM docs JOIN (
-                SELECT docid, rank_score(matchinfo(docs, "pcx")) AS rank
+            SELECT url, title, snippet(docs) FROM docs JOIN (
+                SELECT docid, rank_bm25(matchinfo(docs, "pcnalx")) AS rank
                 FROM docs JOIN sites USING(docid)
                 WHERE docs MATCH ?
                 ORDER BY rank DESC

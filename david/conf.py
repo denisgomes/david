@@ -14,7 +14,7 @@ crawler_options = {
     "debug": False,         # crawl in debug mode
     "level": 100,           # total levels to jump
     "max": 1000,            # max number of urls per level
-    "total": 5000,          # total number of urls to crawl
+    "total": 5000,          # minimum number of urls to crawl
     "follow": True,         # follow external urls
     "respect": True,        # respect host servers
     "robots": True,         # read robots file
