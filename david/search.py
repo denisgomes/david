@@ -2,6 +2,9 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 
+from indexer import Indexer
+
+
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
@@ -15,23 +18,38 @@ app.layout = html.Div(children=[
 
     html.Div(children=[
         dcc.Input(id='input-box', type='text'),
-        html.Button('Search', id='button')
+        html.Button('Search', id='button', n_clicks=0)
         ]),
 
-    html.Div(id='output-container-button',
-             children='Enter a value and press submit'),
-
+    html.Div(id='document-list',
+             children=[])
 ])
 
 
 @app.callback(
-    dash.dependencies.Output('output-container-button', 'children'),
+    dash.dependencies.Output('document-list', 'children'),
     [dash.dependencies.Input('button', 'n_clicks')],
-    [dash.dependencies.State('input-box', 'value')])
+    [dash.dependencies.State('input-box', 'value')],
+    )
 def update_output(n_clicks, value):
-    return 'The input value was "{}" and the button has been clicked {} times'.format(
-        value,
-        n_clicks)
+    indexer = Indexer()
+    results = indexer.search(value)
+
+    li_children = []
+    for no, result in enumerate(results, 1):
+        url, title, snippet = result
+
+        if title:
+            li = html.Li(children=[
+                                html.A(title, href=url),
+                                dcc.Markdown(children=snippet),
+                            ])
+
+            li_children.append(li)
+
+    ol = html.Ol(children=li_children)
+
+    return ol
 
 
 if __name__ == '__main__':

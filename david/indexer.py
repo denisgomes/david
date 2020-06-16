@@ -46,7 +46,8 @@ from conf import indexer_options as io
 from parser import HTMLTextParser
 
 
-# report critial levels above 'warning', (i.e. 'error' and 'critical'), default
+# report critial levels above 'warning', (i.e. 'error' and 'critical'),
+# default
 logging.basicConfig(level=logging.ERROR)
 
 
@@ -178,8 +179,8 @@ class Indexer:
                 """, (url, title, h1, h2, h3, content, zlibzip(html), hash)
                 )
                 self.conn.commit()
-        except Exception as e:
-            print(e)
+        except Exception:
+            logging.exception("unable to insert url, %s" % url)
 
     def delete(self, url):
         pass
@@ -193,7 +194,7 @@ class Indexer:
         documentation query from, https://sqlite.org/fts3.html.
         """
         self.curs.execute("""
-            SELECT url, title, snippet(docs) FROM docs JOIN (
+            SELECT url, title, snippet(docs, '**', '**', '...', 5, 32) FROM docs JOIN (
                 SELECT docid, rank_bm25(matchinfo(docs, "pcnalx")) AS rank
                 FROM docs JOIN sites USING(docid)
                 WHERE docs MATCH ?
@@ -201,7 +202,7 @@ class Indexer:
                 LIMIT ? OFFSET ?
             ) AS ranktable USING(docid)
             WHERE docs MATCH ?
-            ORDER BY ranktable.rank DESC
+            ORDER BY ranktable.rank ASC
             """, (query, limit, page, query)
             )
 
