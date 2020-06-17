@@ -9,8 +9,8 @@ import hashlib
 
 from arackpy import spider
 
-from parser import HTMLTextParser
-from indexer import Indexer
+from david.parser import HTMLTextParser
+from david.indexer import Indexer
 
 
 def md5sum(text):

@@ -6,11 +6,16 @@ stored inside a sqlite repository i.e. database:
 
 * the url,
 * the title,
-* the raw html,
-* html hash,
+* h1,
+* h2,
+* h3,
+* content,
+* the raw html (compressed), <--- needed?
+* html or content hash, <--- not sure which works best
+* external urls (compressed, space separated),
 * pagerank
 
-The documents table is a fts3 table.
+The documents table is a fts4 table.
 
 Sites
 -----
@@ -20,7 +25,7 @@ https://sqlite.org/fts3.html#matchinfo
 
 Documents (FTS)
 ---------------
-rowid, url, title, text
+rowid, url, title, h1, h2, h3, content, raw html, external urls, pagerank
 
 FTS is used along with ranking functions such as bm95 to get pages that match
 terms most closely.
@@ -39,11 +44,12 @@ import zlib
 from lxml import html
 from lxml.html.clean import Cleaner
 import requests
-import sqlite_fts4
+# import sqlite_fts4
 
 
-from conf import indexer_options as io
-from parser import HTMLTextParser
+from david.conf import indexer_options as io
+from david.parser import HTMLTextParser
+from david.extern.sqlite_fts4 import sqlite_fts4
 
 
 # report critial levels above 'warning', (i.e. 'error' and 'critical'),
@@ -194,7 +200,7 @@ class Indexer:
         documentation query from, https://sqlite.org/fts3.html.
         """
         self.curs.execute("""
-            SELECT url, title, snippet(docs, '**', '**', '...', 5, 32) FROM docs JOIN (
+            SELECT url, title, snippet(docs, '**', '**', '...', 5, 25) FROM docs JOIN (
                 SELECT docid, rank_bm25(matchinfo(docs, "pcnalx")) AS rank
                 FROM docs JOIN sites USING(docid)
                 WHERE docs MATCH ?
@@ -202,7 +208,7 @@ class Indexer:
                 LIMIT ? OFFSET ?
             ) AS ranktable USING(docid)
             WHERE docs MATCH ?
-            ORDER BY ranktable.rank ASC
+            ORDER BY ranktable.rank DESC
             """, (query, limit, page, query)
             )
 

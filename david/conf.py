@@ -28,3 +28,15 @@ indexer_options = {
     "debug": False,         # index in debug mode
     "repository": os.path.join(project_root, repository),
 }
+
+
+# weights applied to rank function of FTS table
+# all the weights should add up to a total of 1
+weights = [
+        1.25,               # column 1, url
+        1.25,               # column 2, title
+        1.10,               # column 3, h1
+        1.05,               # column 4, h2
+        1.05,               # column 5, h3
+        1.30                # column 6, content
+]
